@@ -1,38 +1,28 @@
-import { GoogleGenAI } from "@google/genai";
-
-const apiKey = process.env.API_KEY || ''; // Ensure this is set in your environment
-const ai = new GoogleGenAI({ apiKey });
-
+// Funções simuladas sem necessidade de API do Google
 export const generateContentSuggestion = async (prompt: string): Promise<string> => {
-  if (!apiKey) return "API Key not configured. Please check your environment variables.";
+  // Retorna sugestões padrão sem usar IA
+  await new Promise(resolve => setTimeout(resolve, 500)); // Simula delay de API
   
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        systemInstruction: "You are a creative assistant for a church media team. Keep responses concise, inspiring, and professional.",
-      }
-    });
-    return response.text || "No response generated.";
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "Failed to generate content. Please try again.";
-  }
+  const suggestions = [
+    "📸 Lembre-se de capturar os momentos especiais do evento! Fotos de bastidores também são importantes.",
+    "🎥 Verifique o enquadramento e iluminação antes de começar a gravação. Teste o áudio com antecedência.",
+    "✨ Considere diferentes ângulos de câmera para tornar o conteúdo mais dinâmico e interessante.",
+    "📱 Não esqueça de fazer stories e posts em tempo real para engajar a comunidade online.",
+    "🎨 Prepare materiais gráficos com antecedência para uma comunicação visual consistente."
+  ];
+  
+  return suggestions[Math.floor(Math.random() * suggestions.length)];
 };
 
 export const generateTaskIdeas = async (topic: string): Promise<string[]> => {
-    if (!apiKey) return ["Configure API Key to use AI features"];
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Generate 3 actionable Kanban task titles for a church media team regarding: ${topic}. Return only the titles separated by newlines.`,
-        });
-        const text = response.text || "";
-        return text.split('\n').filter(t => t.trim().length > 0);
-    } catch (error) {
-        console.error("Gemini API Error:", error);
-        return ["Error generating ideas"];
-    }
+  // Retorna ideias padrão de tarefas sem usar IA
+  await new Promise(resolve => setTimeout(resolve, 500)); // Simula delay de API
+  
+  const defaultTasks = [
+    `Planejar conteúdo para ${topic}`,
+    `Criar material gráfico relacionado a ${topic}`,
+    `Revisar e aprovar postagens sobre ${topic}`
+  ];
+  
+  return defaultTasks;
 }
