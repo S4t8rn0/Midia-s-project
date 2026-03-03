@@ -1,0 +1,76 @@
+﻿ M .gitignore
+ D App.tsx
+ M README.md
+ D components/Sidebar.tsx
+ D index.html
+ D index.tsx
+ D package-lock.json
+ D package.json
+ D pages/CalendarPage.tsx
+ D pages/GalleryPage.tsx
+ D pages/KanbanPage.tsx
+ D pages/MembersPage.tsx
+ D services/geminiService.ts
+ D tsconfig.json
+ D types.ts
+ D vite-env.d.ts
+ D vite.config.ts
+?? backend/.env.example
+?? backend/.gitignore
+?? backend/README.md
+?? backend/package-lock.json
+?? backend/package.json
+?? backend/sql/001_profiles.sql
+?? backend/src/config/database.ts
+?? backend/src/config/env.ts
+?? backend/src/config/fix-google-constraint.ts
+?? backend/src/config/migrate-google.ts
+?? backend/src/config/migrate.ts
+?? backend/src/controllers/authController.ts
+?? backend/src/controllers/eventController.ts
+?? backend/src/controllers/googleCalendarController.ts
+?? backend/src/controllers/kanbanController.ts
+?? backend/src/controllers/memberController.ts
+?? backend/src/index.ts
+?? backend/src/middlewares/auth.ts
+?? backend/src/middlewares/supabaseAuth.ts
+?? backend/src/routes/authRoutes.ts
+?? backend/src/routes/eventPublicRoutes.ts
+?? backend/src/routes/eventRoutes.ts
+?? backend/src/routes/googleCalendarRoutes.ts
+?? backend/src/routes/index.ts
+?? backend/src/routes/kanbanRoutes.ts
+?? backend/src/routes/memberRoutes.ts
+?? backend/src/services/authService.ts
+?? backend/src/services/eventService.ts
+?? backend/src/services/googleCalendarService.ts
+?? backend/src/services/kanbanService.ts
+?? backend/src/services/memberService.ts
+?? backend/src/types/index.ts
+?? backend/src/utils/logger.ts
+?? backend/tsconfig.json
+?? frontend/App.tsx
+?? frontend/assets/logo.png
+?? frontend/components/Sidebar.tsx
+?? frontend/contexts/AuthContext.tsx
+?? frontend/index.html
+?? frontend/index.tsx
+?? frontend/package-lock.json
+?? frontend/package.json
+?? frontend/pages/Avisos/AvisosPage.tsx
+?? frontend/pages/Calendar/CalendarPage.tsx
+?? frontend/pages/Galery/GalleryPage.tsx
+?? frontend/pages/Kanban/KanbanPage.tsx
+?? frontend/pages/Login/LoginPage.tsx
+?? frontend/pages/Members/MembersPage.tsx
+?? frontend/pages/Settings/SettingsPage.tsx
+?? frontend/services/calendar.ts
+?? frontend/services/eventService.ts
+?? frontend/services/googleCalendarService.ts
+?? frontend/services/supabase.ts
+?? frontend/tsconfig.json
+?? frontend/types.ts
+?? frontend/types/user.ts
+?? frontend/vite-env.d.ts
+?? frontend/vite.config.ts
+?? git_status.txt
