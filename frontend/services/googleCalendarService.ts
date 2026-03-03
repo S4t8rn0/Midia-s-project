@@ -81,11 +81,18 @@ export async function listGoogleEvents(limit: number = 10) {
 export async function listGoogleMonthEvents(year: number, month: number) {
     try {
         const headers = await authHeaders();
+        console.log(`[GCal] Buscando eventos ${year}-${month}...`);
         const res = await fetch(`${BASE}/month-events?year=${year}&month=${month}`, { headers });
-        if (!res.ok) return { total: 0, events: [] };
+        if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`[GCal] Erro ${res.status} para ${year}-${month}:`, errorText);
+            return { total: 0, events: [] };
+        }
         const data = await res.json();
+        console.log(`[GCal] Recebidos ${data.total || 0} eventos para ${year}-${month}`);
         return { total: data.total || 0, events: data.events || [] };
-    } catch {
+    } catch (err) {
+        console.error(`[GCal] Exceção ao buscar ${year}-${month}:`, err);
         return { total: 0, events: [] };
     }
 }

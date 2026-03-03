@@ -218,16 +218,55 @@ export class GoogleCalendarService {
         const timeMin = new Date(year, month - 1, 1);
         const timeMax = new Date(year, month, 1);
 
-        const response = await calendar.events.list({
-            calendarId: env.GOOGLE_CALENDAR_ID || 'primary',
+        const primaryCalendarId = env.GOOGLE_CALENDAR_ID || 'primary';
+        const holidayCalendarId = 'pt-br.brazilian#holiday@group.v.calendar.google.com';
+
+        console.log(`[listMonthEvents] timeMin=${timeMin.toISOString()} timeMax=${timeMax.toISOString()}`);
+
+        // Buscar eventos do calendário principal
+        const primaryPromise = calendar.events.list({
+            calendarId: primaryCalendarId,
             timeMin: timeMin.toISOString(),
             timeMax: timeMax.toISOString(),
             singleEvents: true,
             orderBy: 'startTime',
             maxResults: 250,
+        }).catch(err => {
+            console.error('[listMonthEvents] Erro ao buscar calendário principal:', err.message);
+            return { data: { items: [] } };
         });
 
-        return response.data.items || [];
+        // Buscar feriados brasileiros
+        const holidayPromise = calendar.events.list({
+            calendarId: holidayCalendarId,
+            timeMin: timeMin.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            orderBy: 'startTime',
+            maxResults: 50,
+        }).catch(err => {
+            console.error('[listMonthEvents] Erro ao buscar feriados:', err.message);
+            return { data: { items: [] } };
+        });
+
+        const [primaryRes, holidayRes] = await Promise.all([primaryPromise, holidayPromise]);
+
+        const primaryEvents = primaryRes.data.items || [];
+        const holidayEvents = (holidayRes.data.items || []).map(e => ({
+            ...e,
+            // Marcar como feriado para o frontend diferenciar
+            description: `[HOLIDAY]${e.description || ''}`,
+        }));
+
+        const allEvents = [...primaryEvents, ...holidayEvents].sort((a, b) => {
+            const aStart = a.start?.dateTime || a.start?.date || '';
+            const bStart = b.start?.dateTime || b.start?.date || '';
+            return aStart.localeCompare(bStart);
+        });
+
+        console.log(`[listMonthEvents] Principal: ${primaryEvents.length}, Feriados: ${holidayEvents.length}, Total: ${allEvents.length}`);
+
+        return allEvents;
     }
 
     async createEvent(event: {

@@ -75,8 +75,15 @@ export class GoogleCalendarController {
         const year = parseInt(req.query.year as string) || new Date().getFullYear();
         const month = parseInt(req.query.month as string) || (new Date().getMonth() + 1);
 
+        console.log(`[monthEvents] Buscando eventos para ${year}-${month}`);
+
         try {
             const events = await googleCalendarService.listMonthEvents(year, month);
+
+            console.log(`[monthEvents] Google retornou ${events.length} eventos para ${year}-${month}`);
+            events.forEach(e => {
+                console.log(`  - ${e.summary} | start: ${e.start?.dateTime || e.start?.date} | end: ${e.end?.dateTime || e.end?.date}`);
+            });
 
             res.json({
                 year,
@@ -85,11 +92,13 @@ export class GoogleCalendarController {
                 events: events.map((e) => ({
                     id: e.id,
                     title: e.summary,
+                    description: e.description,
                     start: e.start?.dateTime || e.start?.date,
                     end: e.end?.dateTime || e.end?.date,
                 })),
             });
         } catch (error: any) {
+            console.error(`[monthEvents] Erro para ${year}-${month}:`, error.message || error);
             if (error.statusCode === 401 || error.code === 'GOOGLE_NOT_CONNECTED') {
                 return res.status(401).json({ error: 'GOOGLE_NOT_CONNECTED', total: 0 });
             }

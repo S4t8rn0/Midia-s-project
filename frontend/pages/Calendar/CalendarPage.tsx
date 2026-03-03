@@ -36,7 +36,11 @@ export const CalendarPage: React.FC = () => {
   // Google Calendar events
   const [googleEvents, setGoogleEvents] = useState<CalendarEvent[]>([]);
 
-  // Carregar eventos da API ao montar o componente
+  // Mês/ano atuais derivados do estado
+  const gcYear = currentDate.getFullYear();
+  const gcMonth = currentDate.getMonth() + 1;
+
+  // Carregar eventos da API ao montar e ao mudar de mês
   const loadEvents = useCallback(async () => {
     const apiEvents = await eventApi.fetchEvents();
     if (apiEvents.length > 0) {
@@ -47,32 +51,45 @@ export const CalendarPage: React.FC = () => {
 
   useEffect(() => {
     loadEvents();
-  }, [loadEvents]);
+  }, [loadEvents, gcYear, gcMonth]);
+
+  // Mapa de assigneeIds para eventos do Google (salvo no localStorage)
+  const getGoogleAssignees = (): Record<string, string[]> => {
+    try {
+      const saved = localStorage.getItem('googleEventAssignees');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  };
+
+  const saveGoogleAssignees = (eventId: string, assigneeIds: string[]) => {
+    const map = getGoogleAssignees();
+    map[eventId] = assigneeIds;
+    localStorage.setItem('googleEventAssignees', JSON.stringify(map));
+  };
 
   // Carregar eventos do Google Calendar quando o mês mudar
-  const gcYear = currentDate.getFullYear();
-  const gcMonth = currentDate.getMonth() + 1;
   useEffect(() => {
     listGoogleMonthEvents(gcYear, gcMonth).then(data => {
       if (data.events && data.events.length > 0) {
+        const assigneesMap = getGoogleAssignees();
         const mapped: CalendarEvent[] = data.events.map((e: any) => {
-          // Determinar a data no formato YYYY-MM-DD
           const startStr = e.start || '';
           let dateStr = '';
           if (startStr.includes('T')) {
-            // dateTime format: 2026-03-08T19:00:00-03:00
             dateStr = startStr.split('T')[0];
           } else {
-            // date format: 2026-03-08
             dateStr = startStr;
           }
+          const isHoliday = e.description?.startsWith('[HOLIDAY]') || false;
+          const googleId = `google-${e.id}`;
           return {
-            id: `google-${e.id}`,
+            id: googleId,
             date: dateStr,
             title: e.title || 'Sem título',
-            type: 'EVENT' as const,
-            assigneeIds: [],
+            type: isHoliday ? 'HOLIDAY' as const : 'EVENT' as const,
+            assigneeIds: assigneesMap[googleId] || [],
             isGoogleEvent: true,
+            isHoliday,
           };
         });
         setGoogleEvents(mapped);
@@ -137,6 +154,7 @@ export const CalendarPage: React.FC = () => {
     try {
       const data = await listGoogleMonthEvents(gcYear, gcMonth);
       if (data.events && data.events.length > 0) {
+        const assigneesMap = getGoogleAssignees();
         const mapped: CalendarEvent[] = data.events.map((e: any) => {
           const startStr = e.start || '';
           let dateStr = '';
@@ -145,13 +163,16 @@ export const CalendarPage: React.FC = () => {
           } else {
             dateStr = startStr;
           }
+          const isHoliday = e.description?.startsWith('[HOLIDAY]') || false;
+          const googleId = `google-${e.id}`;
           return {
-            id: `google-${e.id}`,
+            id: googleId,
             date: dateStr,
             title: e.title || 'Sem título',
-            type: 'EVENT' as const,
-            assigneeIds: [],
+            type: isHoliday ? 'HOLIDAY' as const : 'EVENT' as const,
+            assigneeIds: assigneesMap[googleId] || [],
             isGoogleEvent: true,
+            isHoliday,
           };
         });
         setGoogleEvents(mapped);
@@ -175,6 +196,8 @@ export const CalendarPage: React.FC = () => {
           title: newEventTitle,
           date: dateStr,
         });
+        // Salvar membros escalados localmente
+        saveGoogleAssignees(editingEventId, selectedAssignees);
         await reloadGoogleEvents();
       } else {
         // Atualizar evento local via API

@@ -7,7 +7,6 @@ const router = Router();
 // ========================================
 // ROTAS PÚBLICAS DE EVENTOS (DEV)
 // Sem autenticação para facilitar integração frontend
-// TODO: Migrar para as rotas autenticadas quando auth estiver no frontend
 // ========================================
 
 const createEventSchema = z.object({
@@ -26,6 +25,36 @@ const updateEventSchema = z.object({
     assigneeIds: z.array(z.string()).optional(),
 });
 
+/**
+ * Codifica metadata (type e assigneeIds) na description do evento
+ */
+function encodeMetadata(type: string, assigneeIds: string[], description?: string): string {
+    const meta = `[TYPE:${type}][ASSIGNEES:${JSON.stringify(assigneeIds)}]`;
+    return `${meta}${description || ''}`;
+}
+
+/**
+ * Decodifica metadata da description do evento
+ */
+function decodeMetadata(description: string | null | undefined) {
+    const raw = description || '';
+    const typeMatch = raw.match(/\[TYPE:(\w+)\]/);
+    const assigneesMatch = raw.match(/\[ASSIGNEES:(\[.*?\])\]/);
+
+    const type = typeMatch?.[1] || 'SERVICE';
+    let assigneeIds: string[] = [];
+    try {
+        assigneeIds = assigneesMatch ? JSON.parse(assigneesMatch[1]) : [];
+    } catch { }
+
+    const cleanDesc = raw
+        .replace(/\[TYPE:\w+\]/, '')
+        .replace(/\[ASSIGNEES:\[.*?\]\]/, '')
+        .trim();
+
+    return { type, assigneeIds, description: cleanDesc };
+}
+
 // Listar todos os eventos
 router.get('/', async (req: Request, res: Response) => {
     const { month, year } = req.query;
@@ -39,14 +68,22 @@ router.get('/', async (req: Request, res: Response) => {
     });
 
     // Mapear para o formato do frontend (CalendarEvent)
-    const events = result.data.map(ev => ({
-        id: ev.id,
-        title: ev.title,
-        date: new Date(ev.startDate).toISOString().split('T')[0], // YYYY-MM-DD
-        type: (ev.description?.match(/\[TYPE:(\w+)\]/)?.[1] || 'SERVICE') as string,
-        assigneeIds: ev.schedules?.map(s => s.memberId) || [],
-        description: ev.description?.replace(/\[TYPE:\w+\]/, '').trim() || '',
-    }));
+    const events = result.data.map(ev => {
+        const meta = decodeMetadata(ev.description);
+        // Usar assigneeIds da metadata, ou fallback para schedules
+        const assigneeIds = meta.assigneeIds.length > 0
+            ? meta.assigneeIds
+            : (ev.schedules?.map(s => s.memberId) || []);
+
+        return {
+            id: ev.id,
+            title: ev.title,
+            date: new Date(ev.startDate).toISOString().split('T')[0], // YYYY-MM-DD
+            type: meta.type,
+            assigneeIds,
+            description: meta.description,
+        };
+    });
 
     res.json({ events });
 });
@@ -59,18 +96,15 @@ router.post('/', async (req: Request, res: Response) => {
     const startDate = new Date(`${data.date}T09:00:00`);
     const endDate = new Date(`${data.date}T10:00:00`);
 
-    // Guardar o type e assigneeIds na description como metadata
-    const descriptionWithMeta = `[TYPE:${data.type}]${data.description || ''}`;
+    // Guardar type e assigneeIds na description como metadata
+    const descriptionWithMeta = encodeMetadata(data.type, data.assigneeIds, data.description);
 
     const event = await eventService.create({
         title: data.title,
         description: descriptionWithMeta,
         startDate,
         endDate,
-    }, ''); // Sem usuário autenticado (dev mode)
-
-    // Google Calendar sync requer autenticação OAuth — desativado em rotas públicas
-    // TODO: Ativar quando o frontend tiver sistema de auth
+    }, '');
 
     // Retornar no formato do frontend
     res.status(201).json({
@@ -90,29 +124,34 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const data = updateEventSchema.parse(req.body);
 
+    // Buscar evento atual para preservar metadata existente
+    const currentEvent = await eventService.findById(id);
+    const currentMeta = decodeMetadata(currentEvent.description);
+
+    const type = data.type || currentMeta.type;
+    const assigneeIds = data.assigneeIds !== undefined ? data.assigneeIds : currentMeta.assigneeIds;
+    const desc = data.description !== undefined ? data.description : currentMeta.description;
+
     const updateData: Record<string, unknown> = {};
     if (data.title) updateData.title = data.title;
     if (data.date) {
         updateData.startDate = new Date(`${data.date}T09:00:00`);
         updateData.endDate = new Date(`${data.date}T10:00:00`);
     }
-    if (data.description !== undefined || data.type) {
-        const type = data.type || 'SERVICE';
-        updateData.description = `[TYPE:${type}]${data.description || ''}`;
-    }
+
+    // Sempre atualizar a description com a metadata completa
+    updateData.description = encodeMetadata(type, assigneeIds, desc);
 
     const event = await eventService.update(id, updateData);
-
-    // Google Calendar sync desativado em rotas públicas
 
     res.json({
         event: {
             id: event.id,
             title: event.title,
             date: data.date || new Date(event.startDate).toISOString().split('T')[0],
-            type: data.type || 'SERVICE',
-            assigneeIds: data.assigneeIds || [],
-            description: data.description || '',
+            type,
+            assigneeIds,
+            description: desc,
         },
     });
 });
@@ -120,12 +159,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Deletar evento
 router.delete('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
-
-    // Google Calendar unsync desativado em rotas públicas
-
-
     await eventService.delete(id);
-
     res.json({ message: 'Evento removido com sucesso' });
 });
 
