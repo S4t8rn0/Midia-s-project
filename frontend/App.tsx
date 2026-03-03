@@ -660,41 +660,111 @@ function DashboardHome() {
                 </div>
 
                 <div className="bg-white rounded-3xl shadow-soft border border-gray-100 p-8">
-                    <h3 className="font-bold text-xl text-gray-900 mb-6">Escala Hoje</h3>
-                    <div className="space-y-6">
-                        {todayEvents.length === 0 && (
-                            <p className="text-gray-400 text-sm text-center py-4">Nenhum evento agendado para hoje.</p>
-                        )}
-                        {todayEvents.length > 0 && todayMembers.length === 0 && (
-                            <p className="text-gray-400 text-sm text-center py-4">Evento(s) hoje, mas nenhum membro escalado.</p>
-                        )}
-                        {todayMembers.map(member => (
-                            <div key={member.id} className="flex items-center gap-4">
-                                <img src={member.avatar} alt={member.name} className="w-12 h-12 rounded-full border-2 border-white shadow-sm object-cover" />
-                                <div>
-                                    <h5 className="font-bold text-gray-800 text-sm">{member.name}</h5>
-                                    <div className="flex flex-wrap gap-1 mt-0.5">
-                                        {member.roles.map(role => (
-                                            <span key={role} className="inline-block px-2 py-0.5 rounded-md bg-church-50 text-church-600 text-[10px] font-bold uppercase tracking-wide border border-church-100">
-                                                {role}
+                    <h3 className="font-bold text-xl text-gray-900 mb-6">Próxima Escala</h3>
+                    <div className="space-y-5">
+                        {(() => {
+                            // Buscar próximos eventos (hoje ou futuro) ordenados
+                            const upcomingEvents = calendarEvents
+                                .filter(e => e.date && e.date >= todayStr)
+                                .sort((a, b) => a.date.localeCompare(b.date));
+
+                            if (upcomingEvents.length === 0) {
+                                return <p className="text-gray-400 text-sm text-center py-4">Nenhum evento agendado.</p>;
+                            }
+
+                            // Pegar o próximo evento
+                            const nextEv = upcomingEvents[0];
+                            const [ny, nm, nd] = nextEv.date.split('-').map(Number);
+                            const evDate = new Date(ny, nm - 1, nd);
+                            const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+                            const isToday = nextEv.date === todayStr;
+
+                            // Membros escalados: locais + Google Calendar
+                            let assigneeIds = [...(nextEv.assigneeIds || [])];
+                            try {
+                                const saved = localStorage.getItem('googleEventAssignees');
+                                if (saved) {
+                                    const map = JSON.parse(saved) as Record<string, string[]>;
+                                    if (map[nextEv.id]) {
+                                        assigneeIds = [...new Set([...assigneeIds, ...map[nextEv.id]])];
+                                    }
+                                }
+                            } catch { }
+                            const scheduledMembers = assigneeIds
+                                .map(id => members.find(m => m.id === id))
+                                .filter(Boolean) as Member[];
+
+                            const typeColors: Record<string, string> = {
+                                SERVICE: 'bg-church-50 border-church-500 text-church-700',
+                                EVENT: 'bg-accent-50 border-accent-500 text-accent-700',
+                                HOLIDAY: 'bg-cyber-50 border-cyber-500 text-cyber-700',
+                            };
+
+                            return (
+                                <>
+                                    {/* Card do evento */}
+                                    <div className={`p-4 rounded-xl border-l-4 ${typeColors[nextEv.type] || typeColors.EVENT}`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold text-sm">{nextEv.title}</span>
+                                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${isToday ? 'bg-cyber-500 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                                                {isToday ? 'Hoje' : `${dayNames[evDate.getDay()]}, ${String(nd).padStart(2, '0')}/${String(nm).padStart(2, '0')}`}
                                             </span>
-                                        ))}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        ))}
-                        {todayEvents.length > 0 && (
-                            <div className="pt-2 space-y-2">
-                                {todayEvents.map(ev => (
-                                    <div key={ev.id} className={`text-xs p-2.5 rounded-xl border-l-4 ${ev.type === 'SERVICE' ? 'bg-blue-50 border-blue-500 text-blue-700' :
-                                        ev.type === 'HOLIDAY' ? 'bg-red-50 border-red-500 text-red-700' :
-                                            'bg-green-50 border-green-500 text-green-700'
-                                        }`}>
-                                        <span className="font-bold">{ev.title}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+
+                                    {/* Membros escalados */}
+                                    {scheduledMembers.length === 0 ? (
+                                        <p className="text-gray-400 text-xs text-center">Nenhum membro escalado para este evento.</p>
+                                    ) : (
+                                        scheduledMembers.map(member => {
+                                            const palette = ['bg-cyber-500', 'bg-church-600', 'bg-church-700', 'bg-church-800', 'bg-church-500'];
+                                            const hash = (member.name?.charCodeAt(0) || 0) + (member.name?.length || 0);
+                                            const avatarColor = palette[hash % palette.length];
+                                            const initial = member.name ? member.name.trim().charAt(0).toUpperCase() : '?';
+
+                                            return (
+                                                <div key={member.id} className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-cyber-500 to-church-600 flex items-center justify-center flex-shrink-0">
+                                                        <div className={`${avatarColor} w-full h-full rounded-full flex items-center justify-center text-white font-bold text-lg border-2 border-white`}>{initial}</div>
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="font-bold text-gray-800 text-sm">{member.name}</h5>
+                                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                                            {member.roles.map(role => (
+                                                                <span key={role} className="inline-block px-2 py-0.5 rounded-md bg-church-50 text-church-600 text-[10px] font-bold uppercase tracking-wide border border-church-100">
+                                                                    {role}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+
+                                    {/* Outros eventos próximos */}
+                                    {upcomingEvents.length > 1 && (
+                                        <div className="pt-2 border-t border-gray-100">
+                                            <p className="text-[10px] uppercase tracking-wide font-bold text-gray-400 mb-2">Próximos</p>
+                                            <div className="space-y-1.5">
+                                                {upcomingEvents.slice(1, 4).map(ev => {
+                                                    const [ey, em, ed] = ev.date.split('-').map(Number);
+                                                    const eDate = new Date(ey, em - 1, ed);
+                                                    return (
+                                                        <div key={ev.id} className={`text-xs p-2.5 rounded-xl border-l-4 ${typeColors[ev.type] || typeColors.EVENT}`}>
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-bold">{ev.title}</span>
+                                                                <span className="text-[10px] opacity-70">{dayNames[eDate.getDay()]}, {String(ed).padStart(2, '0')}/{String(em).padStart(2, '0')}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                         <button
                             onClick={() => navigate('/calendar')}
                             className="w-full py-3 rounded-xl border border-cyber-100 bg-cyber-500/5 text-cyber-600 text-sm font-medium hover:bg-cyber-500 hover:text-white transition-colors mt-4"
