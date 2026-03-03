@@ -45,3 +45,33 @@ export const MOCK_MEMBERS: Member[] = [
   { id: '2', name: 'Carlos Santos', roles: ['Video Editor'], phone: '5511988888888', avatar: 'https://picsum.photos/seed/carlos/200' },
   { id: '3', name: 'Beatriz Costa', roles: ['Social Media', 'Copywriter'], phone: '5511977777777', avatar: 'https://picsum.photos/seed/bia/200' },
 ];
+
+export type AvisoPriority = 'urgent' | 'info' | 'idea';
+
+export interface Aviso {
+  id: string;
+  title: string;
+  message: string;
+  priority: AvisoPriority;
+  author: string;
+  createdAt: string; // ISO string
+}
+
+export const DEFAULT_AVISOS: Aviso[] = [
+  {
+    id: 'default-1',
+    title: 'Backup dos Arquivos',
+    message: 'Lembrem-se de subir os vídeos do último culto para o Drive até sexta-feira.',
+    priority: 'urgent',
+    author: 'Admin',
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'default-2',
+    title: 'Brainstorming Natal',
+    message: 'Reunião confirmada para próxima terça, 20h. Tragam referências visuais.',
+    priority: 'idea',
+    author: 'Liderança',
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  },
+];
