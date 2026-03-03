@@ -158,6 +158,32 @@ function DashboardHome() {
         .map(id => members.find(m => m.id === id))
         .filter(Boolean) as Member[];
 
+    // Próximo evento do calendário (data >= hoje)
+    const nextEvent = React.useMemo(() => {
+        const upcoming = calendarEvents
+            .filter(e => e.date && e.date >= todayStr)
+            .sort((a, b) => a.date.localeCompare(b.date));
+        return upcoming.length > 0 ? upcoming[0] : null;
+    }, [calendarEvents, todayStr]);
+
+    // Formatar dados do próximo evento para o Hero Card
+    const nextEventDisplay = React.useMemo(() => {
+        if (!nextEvent) return null;
+        const [year, month, day] = nextEvent.date.split('-').map(Number);
+        const eventDate = new Date(year, month - 1, day);
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+        const typeLabels: Record<string, string> = { SERVICE: 'Culto', EVENT: 'Evento', HOLIDAY: 'Feriado' };
+        return {
+            title: nextEvent.title,
+            subtitle: `${dayNames[eventDate.getDay()]}, ${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')} • ${typeLabels[nextEvent.type] || nextEvent.type}`,
+            monthName: monthNames[month - 1],
+            day: String(day).padStart(2, '0'),
+            dayOfWeek: dayNames[eventDate.getDay()],
+            description: nextEvent.description || '',
+        };
+    }, [nextEvent]);
+
     // Eventos do mês atual (sincronizado com Google Calendar)
     const [googleMonthTotal, setGoogleMonthTotal] = useState<number | null>(null);
 
@@ -179,6 +205,38 @@ function DashboardHome() {
     });
     const monthEventsCount = googleMonthTotal !== null ? googleMonthTotal : localMonthEvents.length;
     const monthSpecialCount = localMonthEvents.filter(e => e.type === 'EVENT' || e.type === 'HOLIDAY').length;
+
+    // Contagem de membros escalados na semana atual
+    const weeklyScheduleCount = React.useMemo(() => {
+        // Calcular início (domingo) e fim (sábado) da semana atual
+        const today = new Date();
+        const dayOfWeek = today.getDay();
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - dayOfWeek);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+
+        const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+        const weekEndStr = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`;
+
+        // Buscar eventos da semana (locais)
+        const weekEvents = calendarEvents.filter(e => e.date && e.date >= weekStartStr && e.date <= weekEndStr);
+        const localAssignees = weekEvents.flatMap(e => e.assigneeIds || []);
+
+        // Buscar assignees do Google Calendar salvos no localStorage
+        let googleAssignees: string[] = [];
+        try {
+            const saved = localStorage.getItem('googleEventAssignees');
+            if (saved) {
+                const map = JSON.parse(saved) as Record<string, string[]>;
+                googleAssignees = Object.values(map).flat();
+            }
+        } catch { }
+
+        // Contar membros únicos
+        const allAssignees = new Set([...localAssignees, ...googleAssignees]);
+        return allAssignees.size;
+    }, [calendarEvents]);
 
     // CRUD state for avisos
     const [showAvisoModal, setShowAvisoModal] = useState(false);
@@ -417,7 +475,7 @@ function DashboardHome() {
                 </div>
             </header>
 
-            {/* Hero Card */}
+            {/* Hero Card — Próximo Evento sincronizado com calendário */}
             <div className="mb-10 rounded-3xl overflow-hidden shadow-2xl relative bg-church-800 text-white">
                 <div className="absolute top-0 right-0 w-[500px] h-full bg-gradient-to-l from-church-600 to-transparent opacity-50"></div>
                 <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-accent-500 rounded-full blur-[100px] opacity-40"></div>
@@ -429,10 +487,23 @@ function DashboardHome() {
                             <span className="w-2 h-2 rounded-full bg-cyber-500 animate-pulse"></span>
                             Próximo Evento
                         </div>
-                        <h2 className="text-4xl md:text-5xl font-bold mb-2 tracking-tight">Culto da Família</h2>
-                        <p className="text-church-100 text-lg mb-6 max-w-md">Domingo, 19:00h • Auditório Principal</p>
+                        {nextEventDisplay ? (
+                            <>
+                                <h2 className="text-4xl md:text-5xl font-bold mb-2 tracking-tight">{nextEventDisplay.title}</h2>
+                                <p className="text-church-100 text-lg mb-2 max-w-md">{nextEventDisplay.subtitle}</p>
+                                {nextEventDisplay.description && (
+                                    <p className="text-church-200 text-sm mb-6 max-w-md">{nextEventDisplay.description}</p>
+                                )}
+                                {!nextEventDisplay.description && <div className="mb-6" />}
+                            </>
+                        ) : (
+                            <>
+                                <h2 className="text-4xl md:text-5xl font-bold mb-2 tracking-tight opacity-60">Sem eventos</h2>
+                                <p className="text-church-100 text-lg mb-6 max-w-md">Nenhum evento próximo agendado</p>
+                            </>
+                        )}
                         <div className="flex gap-3">
-                            <button className="px-6 py-3 bg-cyber-500 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-cyber-600 transition-colors">
+                            <button onClick={() => navigate('/calendar')} className="px-6 py-3 bg-cyber-500 text-white rounded-xl font-bold text-sm shadow-lg hover:bg-cyber-600 transition-colors">
                                 Ver Escala
                             </button>
                             <button onClick={() => navigate('/kanban')} className="px-6 py-3 bg-white/10 text-white border border-white/20 rounded-xl font-medium text-sm hover:bg-white/20 transition-colors">
@@ -441,12 +512,20 @@ function DashboardHome() {
                         </div>
                     </div>
 
-                    {/* Visual Decoration or Quick Date */}
-                    <div className="bg-white/10 backdrop-blur-md border border-white/10 p-6 rounded-2xl w-full md:w-auto text-center min-w-[140px]">
-                        <span className="block text-cyber-400 font-bold uppercase text-sm tracking-wider mb-1">Outubro</span>
-                        <span className="block text-5xl font-bold">24</span>
-                        <span className="block text-church-200 text-sm mt-1">Domingo</span>
-                    </div>
+                    {/* Quick Date — sincronizado */}
+                    {nextEventDisplay ? (
+                        <div className="bg-white/10 backdrop-blur-md border border-white/10 p-6 rounded-2xl w-full md:w-auto text-center min-w-[140px]">
+                            <span className="block text-cyber-400 font-bold uppercase text-sm tracking-wider mb-1">{nextEventDisplay.monthName}</span>
+                            <span className="block text-5xl font-bold">{nextEventDisplay.day}</span>
+                            <span className="block text-church-200 text-sm mt-1">{nextEventDisplay.dayOfWeek}</span>
+                        </div>
+                    ) : (
+                        <div className="bg-white/10 backdrop-blur-md border border-white/10 p-6 rounded-2xl w-full md:w-auto text-center min-w-[140px]">
+                            <span className="block text-cyber-400 font-bold uppercase text-sm tracking-wider mb-1">—</span>
+                            <span className="block text-5xl font-bold opacity-30">--</span>
+                            <span className="block text-church-200 text-sm mt-1">—</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -477,7 +556,7 @@ function DashboardHome() {
                 />
                 <StatCard
                     title="Escala da Semana"
-                    value="8"
+                    value={String(weeklyScheduleCount).padStart(2, '0')}
                     subtitle="Membros escalados"
                     icon={Users}
                     colorClass="bg-church-500"
