@@ -5,6 +5,7 @@ import eventRoutes from './eventRoutes';
 import kanbanRoutes from './kanbanRoutes';
 import googleCalendarRoutes from './googleCalendarRoutes';
 import eventPublicRoutes from './eventPublicRoutes';
+import memberPublicRoutes from './memberPublicRoutes';
 // import fileRoutes from './fileRoutes';
 
 const router = Router();
@@ -25,6 +26,7 @@ router.use('/events', eventRoutes);
 router.use('/kanban', kanbanRoutes);
 router.use('/google-calendar', googleCalendarRoutes);
 router.use('/events-public', eventPublicRoutes); // Rotas sem auth para dev
+router.use('/members-public', memberPublicRoutes); // Rotas de membros sem auth
 // router.use('/files', fileRoutes);
 
 export default router;

@@ -20,6 +20,40 @@ export const MembersPage: React.FC = () => {
 
     // Buscar perfis do Supabase e converter para Member
     const fetchMembers = useCallback(async () => {
+        const API_URL = ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:4000') + '/api/members-public';
+
+        try {
+            // Tentar via backend (SQL direto, sem RLS)
+            const res = await fetch(API_URL);
+            if (res.ok) {
+                const data = await res.json();
+                const converted: Member[] = (data.members || []).map((p: any) => {
+                    let roles: string[] = ['Membro'];
+                    if (p.roles && Array.isArray(p.roles)) {
+                        roles = p.roles;
+                    } else if (typeof p.roles === 'string') {
+                        try { roles = JSON.parse(p.roles); } catch { roles = [p.roles]; }
+                    } else if (p.role === 'admin') {
+                        roles = ['Admin'];
+                    }
+                    return {
+                        id: p.id,
+                        name: p.name || p.email || 'Sem nome',
+                        roles,
+                        phone: p.phone || '',
+                        avatar: p.avatar || `https://picsum.photos/seed/${p.id}/200`,
+                    };
+                });
+
+                setMembers(converted);
+                localStorage.setItem('members', JSON.stringify(converted));
+                return;
+            }
+        } catch (err) {
+            console.warn('Backend indisponível, usando Supabase:', err);
+        }
+
+        // Fallback: Supabase
         try {
             const { data, error } = await supabase
                 .from('profiles')
@@ -28,7 +62,6 @@ export const MembersPage: React.FC = () => {
 
             if (error) {
                 console.error('Erro ao buscar membros:', error);
-                setLoading(false);
                 return;
             }
 
@@ -41,7 +74,6 @@ export const MembersPage: React.FC = () => {
             }));
 
             setMembers(converted);
-            // Sincronizar com localStorage para uso no dashboard/calendar
             localStorage.setItem('members', JSON.stringify(converted));
         } catch (err) {
             console.error('Erro de rede ao buscar membros:', err);
@@ -54,6 +86,8 @@ export const MembersPage: React.FC = () => {
         fetchMembers();
     }, [fetchMembers]);
 
+    const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:4000') + '/api/members-public';
+
     const addMember = async () => {
         if (!newMemberName) return;
 
@@ -62,30 +96,33 @@ export const MembersPage: React.FC = () => {
             .map(r => r.trim())
             .filter(r => r.length > 0);
 
-        // Inserir novo perfil no Supabase (sem auth, apenas na tabela profiles)
-        const newId = crypto.randomUUID();
-        const { error } = await supabase.from('profiles').insert({
-            id: newId,
-            name: newMemberName,
-            email: `${newMemberName.toLowerCase().replace(/\s+/g, '.')}@membro.local`,
-            role: 'member',
-            roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
-            phone: newMemberPhone || null,
-        });
+        try {
+            const res = await fetch(API_BASE, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newMemberName,
+                    roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
+                    phone: newMemberPhone || null,
+                }),
+            });
 
-        if (error) {
-            console.error('Erro ao adicionar membro:', error);
-            // Fallback: adicionar localmente
-            const newMember: Member = {
-                id: newId,
-                name: newMemberName,
-                roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
-                phone: newMemberPhone,
-                avatar: `https://picsum.photos/seed/${newId}/200`,
-            };
-            setMembers(prev => [...prev, newMember]);
-        } else {
-            await fetchMembers();
+            if (res.ok) {
+                await fetchMembers();
+            } else {
+                console.error('Erro ao adicionar membro via API');
+                // Fallback local
+                const newMember: Member = {
+                    id: crypto.randomUUID(),
+                    name: newMemberName,
+                    roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
+                    phone: newMemberPhone,
+                    avatar: `https://picsum.photos/seed/${Date.now()}/200`,
+                };
+                setMembers(prev => [...prev, newMember]);
+            }
+        } catch (err) {
+            console.error('Erro de rede:', err);
         }
 
         setShowModal(false);
@@ -109,23 +146,31 @@ export const MembersPage: React.FC = () => {
             .map(r => r.trim())
             .filter(r => r.length > 0);
 
-        const { error } = await supabase.from('profiles').update({
-            name: newMemberName,
-            roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
-            phone: newMemberPhone || null,
-        }).eq('id', editingMemberId);
+        try {
+            const res = await fetch(`${API_BASE}/${editingMemberId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: newMemberName,
+                    roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
+                    phone: newMemberPhone || null,
+                }),
+            });
 
-        if (error) {
-            console.error('Erro ao atualizar membro:', error);
-            // Fallback local
-            setMembers(members.map(m => m.id === editingMemberId ? {
-                ...m,
-                name: newMemberName,
-                roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
-                phone: newMemberPhone,
-            } : m));
-        } else {
-            await fetchMembers();
+            if (res.ok) {
+                await fetchMembers();
+            } else {
+                console.error('Erro ao atualizar membro via API');
+                // Fallback local
+                setMembers(members.map(m => m.id === editingMemberId ? {
+                    ...m,
+                    name: newMemberName,
+                    roles: rolesArray.length > 0 ? rolesArray : ['Voluntário'],
+                    phone: newMemberPhone,
+                } : m));
+            }
+        } catch (err) {
+            console.error('Erro de rede:', err);
         }
 
         setEditingMemberId(null);
@@ -138,14 +183,26 @@ export const MembersPage: React.FC = () => {
     const removeMember = async (id: string) => {
         if (!confirm("Remover membro da equipe?")) return;
 
-        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        try {
+            const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:4000') + '/api/members-public';
+            const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
 
-        if (error) {
-            console.error('Erro ao remover membro:', error);
-            // Fallback local
-            setMembers(members.filter(m => m.id !== id));
-        } else {
-            await fetchMembers();
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                console.error('Erro ao remover membro via API:', data);
+                alert('Falha ao remover membro.');
+                return;
+            }
+
+            // Remover da UI e do localStorage
+            setMembers(prev => {
+                const updated = prev.filter(m => m.id !== id);
+                localStorage.setItem('members', JSON.stringify(updated));
+                return updated;
+            });
+        } catch (err) {
+            console.error('Erro de rede ao remover membro:', err);
+            alert('Erro de conexão. Tente novamente.');
         }
     };
 
